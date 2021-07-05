@@ -1,62 +1,58 @@
 package training.busboard;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Scanner;
 
 import javax.ws.rs.client.Client;
 import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.MediaType;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
 import org.glassfish.jersey.jackson.JacksonFeature;
 
 public class Main {
     public static void main(String args[]) {
-        // Your code here!
-        String stopId = getStringFromUser("Enter the stop ID: ");
 
+        Client client = ClientBuilder.newBuilder().register(JacksonFeature.class).build();
+        String postCode = getStringFromUser("Enter the postcode:" );
         try{
-            Client client = ClientBuilder.newBuilder().register(JacksonFeature.class).build();
-            String response = client.target("https://api.tfl.gov.uk/StopPoint/"+ stopId +"/Arrivals")
-                .request(MediaType.APPLICATION_JSON)
-                .get(String.class);
+            String postcodeData = getApiResponse("http://api.postcodes.io/postcodes/"+ postCode, client);
+            Coordinate coordinate = JsonParser.extractCoordinatesFromJson(postcodeData);
+            String responseForBs = getApiResponse("https://api.tfl.gov.uk/StopPoint//?lat=" + coordinate.getlatitude() +
+                                                "&lon=" + coordinate.getlongitude() +
+                                                "&stopTypes=NaptanPublicBusCoachTram", client);
 
-            ArrayList<Bus> buses = processJson(response);
-            for (int i = 0; i < 5; i++){
-                System.out.println(buses.get(i).getId() + ": " + 
-                                   buses.get(i).getIntegerTime() + "min");
+            // input the coordinate we calculated from the postcode into the 2nd API to get the near stops
+            ArrayList<BusStop> stops = JsonParser.extractBusStopsFromJson(responseForBs);
+            for(int i= 0; i < 2; i++ )
+            {
+                System.out.println(stops.get(i).getName() + ": " + (int)stops.get(i).getDistance() + "km");
+                printBusTimes(stops.get(i).getId());
             }
         }
         catch(Exception e){
-            System.out.println("Invalid bus ID.");
+            System.out.println("Invalid Post Code.");
         }
-       
     }
 
-    public static ArrayList<Bus> processJson(String json){
-        ArrayList<Bus> buses = new ArrayList<Bus>();
+    public static void printBusTimes(String stopId){
+        try{
+            Client client = ClientBuilder.newBuilder().register(JacksonFeature.class).build();
+            String response = getApiResponse("https://api.tfl.gov.uk/StopPoint/"+ stopId +"/Arrivals", client);
 
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            JsonNode jNode = mapper.readTree(json);
-    
-            //traverse the jsonnode here and input them into the arraylist
-            for (JsonNode root : jNode){
-                int timeToStationInS = Integer.parseInt(root.get("timeToStation").asText());
-                String busId = root.get("lineId").asText();
-                Bus bus = new Bus(timeToStationInS, busId);
-                buses.add(bus);
+            ArrayList<Bus> buses = JsonParser.extractBusesFromJson(response);
+            for (int i = 0; i < 5; i++){
+                System.out.println(buses.get(i).getId() + ": " + buses.get(i).getIntegerTime() + "min");
             }
-    
-            Collections.sort(buses, new SortbyTime<Bus>());
         }
-        catch (Exception e){
-            System.out.println("An error has occured.");
-        }
-        return buses;
+        catch(Exception e){
+            System.out.println("An error has occured while printing bus times.");
+        } 
+    }
+
+    public static String getApiResponse(String url, Client client) throws Exception {
+        return client.target(url)
+        .request(MediaType.APPLICATION_JSON)
+        .get(String.class);
     }
 
     public static String getStringFromUser(String message){
