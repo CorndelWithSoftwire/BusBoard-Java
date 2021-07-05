@@ -12,7 +12,22 @@
         <div layout:fragment="content" class="container body-content">
             <h2>Bus Information</h2>
             <div>
-                <p>You entered postcode <span th:text="${busInfo.postcode}"></span></p>
+                <h5 th:text="${busInfo.stop1.name}"></h5>
+                <tr th:each="time: ${busInfo.stop1.busTimes}">
+                    <p>
+                        Bus <td th:text="${time.busId}" /> due in 
+                        <td th:text="${time.time}" /> min
+                    </p>
+                </tr>
+                
+                
+                <h5 th:text="${busInfo.stop2.name}"></h5>
+                <tr th:each="time: ${busInfo.stop2.busTimes}">
+                    <p>
+                        Bus <td th:text="${time.busId}" /> due in 
+                        <td th:text="${time.time}" /> min
+                    </p>
+                </tr>
             </div>
         </div>
     </body>
